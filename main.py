@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, render_template
+from flask import Flask, request, redirect, render_template, session
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -6,6 +6,7 @@ app.config['DEBUG'] = True
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://get-it-done:alwaysbecoding@localhost:8889/get-it-done'
 app.config['SQLALCHEMY_ECHO'] = True
 db = SQLAlchemy(app)
+app.secret_key = "#mysecretkey"
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key = True)
@@ -25,6 +26,13 @@ class User(db.Model):
         self.email = email
         self.password = password
 
+@app.before_request
+def require_login():
+    allowed_routes = ['login', 'register']
+    if request.endpoint not in allowed_routes and 'email' not in session:
+        return redirect('/login')
+
+
 @app.route('/login', methods = ['POST', 'GET'])
 def login():
     if request.method == 'POST':
@@ -32,7 +40,7 @@ def login():
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
         if user and user.password == password:
-            # TODO - "remember" that the user has logged in
+            session['email'] = email
             return redirect('/')
         else:
             # TODO - explain why login failed
@@ -54,13 +62,18 @@ def register():
             new_user = User(email, password)
             db.session.add(new_user)
             db.session.commit()
-            # TODO - "remember" the user
+            session['email'] = email
             return redirect('/')
         else:
             # TODO - a better user already exists message
             return '<h1>Duplicate user</h1>'
 
     return render_template('register.html')
+
+@app.route('/logout')
+def logout():
+    del session['email']
+    return redirect('/')
 
 @app.route("/", methods = ['POST', 'GET'])
 def index():
